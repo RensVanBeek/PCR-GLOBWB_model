@@ -362,9 +362,17 @@ def netcdf2PCRobjClone(ncFile,varName,dateInput,\
         if xULClone != xULInput: sameClone = False
         if yULClone != yULInput: sameClone = False
 
-    cropData = f.variables[varName][int(idx),:,:]       # still original data
+    #-check data on dimensions - this correction is needed in case of the WFDEI_Forcing which has includes levels for surface varables (time, level, lat, lon)
+    if f.variables[varName].ndim == 4:
+        # not standard NC format
+        logger.warning('WARNING: the netCDF file %s has an additional dimension for variable %s ; the last two are read as latitude, longitude' % (ncFile, varName))
+        #-file with additional layer
+        cropData = f.variables[varName][int(idx),0,:,:]       # still original data
+    else:
+        #-standard nc file
+        cropData = f.variables[varName][int(idx),:,:]       # still original data
     factor = 1                          # needed in regridData2FinerGrid
-
+ 
     if sameClone == False:
         
         logger.debug('Crop to the clone map with lower left corner (x,y): '+str(xULClone)+' , '+str(yULClone))
@@ -377,8 +385,16 @@ def netcdf2PCRobjClone(ncFile,varName,dateInput,\
         minY    = min(abs(f.variables['lat'][:] - (yULClone - 0.5*cellsizeInput))) # ; print(minY)
         yIdxSta = int(np.where(abs(f.variables['lat'][:] - (yULClone - 0.5*cellsizeInput)) == minY)[0])
         yIdxEnd = int(math.ceil(yIdxSta + rowsClone /(cellsizeInput/cellsizeClone)))
-        cropData = f.variables[varName][idx,yIdxSta:yIdxEnd,xIdxSta:xIdxEnd]
-
+        #-retrieve data from netCDF for slice
+        if f.variables[varName].ndim == 4:
+            # not standard NC format
+            logger.warning('WARNING: the netCDF file %s has an additional dimension for variable %s ; the last two are read as latitude, longitude' % (ncFile, varName))
+            #-file with additional layer
+            cropData = f.variables[varName][int(idx),0,yIdxSta:yIdxEnd,xIdxSta:xIdxEnd]       # selection of original data
+        else:
+            #-standard nc file
+            cropData = f.variables[varName][int(idx),yIdxSta:yIdxEnd,xIdxSta:xIdxEnd]       # selection of original data
+        #-get resampling factor
         factor = int(round(float(cellsizeInput)/float(cellsizeClone)))
         if factor > 1: logger.debug('Resample: input cell size = '+str(float(cellsizeInput))+' ; output/clone cell size = '+str(float(cellsizeClone)))
 

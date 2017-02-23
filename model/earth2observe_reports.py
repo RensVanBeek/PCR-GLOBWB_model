@@ -238,3 +238,49 @@ netcdf_long_name[pcrglobwb_variable_name]  = 'Total soil moisture'
 description[pcrglobwb_variable_name]       = 'Vertically integrated total soil moisture (RootLayerThick)'
 comment[pcrglobwb_variable_name]           = 'equals RootMoist'
 latex_symbol[pcrglobwb_variable_name]      = None
+
+'''
+Takes care of reporting (writing) output to netcdf files. Aggregates totals and averages for various time periods.
+@author: Edwin H. Sutanudjaja
+
+Additional variables for Earth2Observe
+@author: Ruud van der Ent, 2017-02-15
+'''
+
+
+    def post_processing(self):
+
+        self.e2o_post_processing()
+        
+    def e2o_post_processing(self):
+        
+        # fluxes (/86.4 to go from "m day-1" to "kg m-2 s-1")
+        self.Precip     =   self._model.meteo.precipitation / 86.4 # report in kg m-2 s-1
+        self.Evap       = - (self._model.landSurface.actualET + 
+                            self._model.routing.waterBodyEvaporation) / 86.4 # report in kg m-2 s-1
+        self.Runoff     = - self._model.routing.runoff / 86.4 # report in kg m-2 s-1
+        self.Qs         = - (self._model.landSurface.directRunoff + 
+                            self._model.landSurface.interflowTotal) / 86.4  # report in kg m-2 s-1
+        self.Qsb        = - self._model.groundwater.baseflow / 86.4 # report in kg m-2 s-1
+        self.Qsm        =   self._model.landSurface.snowMelt / 86.4 # report in kg m-2 s-1
+        self.PotEvap    = - self._model.meteo.referencePotET / 86.4 # report in kg m-2 s-1
+        self.ECanop     = - self._model.landSurface.interceptEvap / 86.4 # report in kg m-2 s-1
+        self.TVeg       = - self._model.landSurface.actTranspiTotal / 86.4 # report in kg m-2 s-1
+        self.ESoil      = - self._model.landSurface.actBareSoilEvap / 86.4 # report in kg m-2 s-1
+        self.EWater     = - self._model.routing.waterBodyEvaporation / 86.4 # report in kg m-2 s-1
+        self.RivOut     =   self._model.routing.disChanWaterBody # report in m3/s
+        
+        # state variables (*1000 to go from "m" to "kg m-2")
+        self.SWE        =   self._model.landSurface.snowCoverSWE * 1000 # report in kg m-2
+        self.CanopInt   =   self._model.landSurface.interceptStor * 1000 # report in kg m-2
+        self.SurfStor   =   ( self._model.landSurface.topWaterLayer 
+                            + (self._model.routing.channelStorage/self._model.routing.cellArea) 
+                            + pcr.ifthen(self._model.routing.landmask, 
+                            pcr.ifthen(
+                            pcr.scalar(self._model.routing.WaterBodies.waterBodyIds) > 0.,
+                                       self._model.routing.WaterBodies.waterBodyStorage)) ) * 1000  # report in kg m-2
+        self.SurfMoist  =   self._model.landSurface.storUppTotal * 1000 # report in kg m-2 (water in SurfLayerThick)
+        self.RootMoist  =   ( self._model.landSurface.storUppTotal + 
+                            self._model.landSurface.storLowTotal ) * 1000 # report in kg m-2 (water in RootLayerThick)
+        self.TotMoist   =   self.RootMoist # equals RootMoist...
+        self.GroundMoist    = self._model.groundwater.storGroundwater * 1000  # self._model.groundwater. # report in kg m-2
